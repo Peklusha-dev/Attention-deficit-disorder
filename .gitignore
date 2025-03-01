@@ -1,0 +1,36 @@
+# created by virtualenv automatically
+# PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Virtual environment
+venv/
+env/
+bin/
+include/
+lib/
+lib64/
+pyvenv.cfg
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Logs and temp files
+*.log
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+pip-wheel-metadata/
+*.egg-info/
+
+# Test data
+test_data/
