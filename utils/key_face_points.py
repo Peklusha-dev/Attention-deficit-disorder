@@ -2,7 +2,7 @@ import cv2
 import dlib
 
 # Укажите путь к видеофайлу
-video_path = 'test_data/video4.mp4'  # Замените на путь к вашему видеофайлу
+video_path = '../test_data/video4.mp4'  # Замените на путь к вашему видеофайлу
 
 # Открытие видеофайла
 cap = cv2.VideoCapture(video_path)

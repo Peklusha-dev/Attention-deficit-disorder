@@ -6,9 +6,9 @@ from cv2 import destroyAllWindows
 from cv2 import CascadeClassifier
 from cv2 import rectangle
 # load the photograph
-pixels = imread('test3.jpg')
+pixels = imread('test_data/test1.jpg')
 # load the pre-trained model
-classifier = CascadeClassifier('haarcascade_frontalface_default.xml')
+classifier = CascadeClassifier('../haarcascade_frontalface_default.xml')
 # perform face detection
 bboxes = classifier.detectMultiScale(pixels)
 # print bounding box for each detected face

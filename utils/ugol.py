@@ -8,7 +8,7 @@ mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(refine_landmarks=True, max_num_faces=1)
 
 # Открытие видео
-cap = cv2.VideoCapture('test_data/video4.mp4')  # Замените на 0 для веб-камеры
+cap = cv2.VideoCapture('../test_data/video4.mp4')  # Замените на 0 для веб-камеры
 fps = int(cap.get(cv2.CAP_PROP_FPS))
 
 # Хранилища данных для графика

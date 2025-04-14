@@ -13,7 +13,7 @@ trajectory_screen = []
 scaling_factor = 7
 
 # Открытие видео
-cap = cv2.VideoCapture('test_data/video4.mp4')  #0 - если хотите использовать изображение с веб-камеры
+cap = cv2.VideoCapture('../test_data/video4.mp4')  #0 - если хотите использовать изображение с веб-камеры
 
 # Получение FPS видео
 fps = cap.get(cv2.CAP_PROP_FPS)
