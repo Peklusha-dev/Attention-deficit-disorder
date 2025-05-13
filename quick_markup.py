@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np  # Добавляем импорт numpy
 
 # Папка с изображениями
-image_folder = './test_data/video/video2_frames'  # <-- замените на свою папку
-output_csv = 'annotations_2.csv'
+image_folder = './test_data/video/video7_frames'  # <-- замените на свою папку
+output_csv = 'annotations_7.csv'
 
 # Загружаем все изображения
 image_files = sorted([f for f in os.listdir(image_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
