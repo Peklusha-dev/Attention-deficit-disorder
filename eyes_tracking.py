@@ -8,6 +8,10 @@ import plotly.graph_objects as go
 from matplotlib import pyplot as plt
 from plotly.subplots import make_subplots
 
+from eye_tracker.data_processing import smooth_coordinates, compute_velocity
+from eye_tracker.utils import load_pupil_data
+
+
 class PupilDetector:
     def __init__(self):
         """Инициализация детектора зрачков"""
@@ -336,5 +340,5 @@ class PupilDetector:
 
 if __name__ == "__main__":
     detector = PupilDetector()
-    detector.process_video('test_data/video_7.MOV', output_csv='pupil_data_7.csv')
-    detector.plot_eye_movement_ploty(input_csv='pupil_data_7.csv', output_plot='eye_movement_plot_7.html')
+    #detector.process_video('test_data/video_8.MOV', output_csv='pupil_data_8.csv')
+    detector.plot_eye_movement_ploty(input_csv='pupil_data_8.csv', output_plot='eye_movement_plot_8.html')
