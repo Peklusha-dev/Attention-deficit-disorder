@@ -1,0 +1,19 @@
+# Eye Movement Tracking System Requirements
+
+# Core dependencies
+opencv-python>=4.5.0
+mediapipe>=0.8.0
+numpy>=1.21.0
+pandas>=1.3.0
+
+# Segmentation algorithms
+scipy>=1.7.0
+hmmlearn>=0.2.7
+
+# Visualization
+plotly>=5.0.0
+matplotlib>=3.4.0
+
+# Optional: For calibration experiments
+psychopy>=3.2.0
+
