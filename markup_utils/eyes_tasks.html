@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Эксперимент: Глазодвигательные задачи</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .screen {
+            display: none;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 800px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .dot {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: red;
+            border-radius: 50%;
+        }
+        .moving-target {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: blue;
+            border-radius: 50%;
+        }
+        #searchGrid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 10px;
+            margin: 20px auto;
+            max-width: 600px;
+        }
+        .search-item {
+            width: 40px;
+            height: 40px;
+            background-color: #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .target {
+            background-color: #ff4444;
+            color: white;
+        }
+        .experiment-info {
+            background: #e8f4fd;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        #logOutput {
+            text-align: left;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Эксперимент: Глазодвигательные задачи</h1>
+
+    <!-- Экран выбора задач -->
+    <div id="mainScreen" class="screen" style="display: block;">
+        <h2>Выберите задачу:</h2>
+        <div class="experiment-info">
+            <p><strong>Инструкция:</strong> Запустите задачу и начните запись видео. Все события логируются с реальным временем.</p>
+        </div>
+        <button onclick="startExperiment('saccades')">1. Детерминированные саккады</button>
+        <button onclick="startExperiment('predictableSaccades')">2. Предсказуемые саккады</button>
+        <button onclick="startExperiment('smoothPursuit')">3. Плавное слежение</button>
+        <button onclick="startExperiment('visualSearch')">4. Поиск цели</button>
+        <button onclick="startExperiment('imageViewing')">5. Свободный просмотр</button>
+        <button onclick="startExperiment('reading')">6. Чтение текста</button>
+
+        <div id="logOutput"></div>
+        <button onclick="downloadLog()" style="background-color: #2196F3;">Скачать лог</button>
+        <button onclick="clearLog()" style="background-color: #ff9800;">Очистить лог</button>
+    </div>
+
+    <!-- Задача 1: Детерминированные саккады -->
+    <div id="saccades" class="screen">
+        <h2>Детерминированные саккады</h2>
+        <p>Смотрите на точки в строго заданной последовательности</p>
+        <div class="experiment-info">
+            <p><strong>Эталон:</strong> Фиксация (2 сек) → Саккада → Фиксация (2 сек)</p>
+            <p>Точки появляются в предсказуемом порядке</p>
+        </div>
+        <div id="saccadesArea" style="position: relative; width: 600px; height: 400px; margin: 0 auto; background: #f8f8f8; border: 1px solid #ccc;"></div>
+        <button onclick="endExperiment()">Завершить</button>
+    </div>
+
+    <!-- Задача 2: Предсказуемые саккады -->
+    <div id="predictableSaccades" class="screen">
+        <h2>Предсказуемые саккады (Горизонтальные)</h2>
+        <p>Следите за точкой, движущейся по горизонтали</p>
+        <div class="experiment-info">
+            <p><strong>Эталон:</strong> Регулярные саккады слева-направо с постоянным интервалом</p>
+        </div>
+        <div id="predictableArea" style="position: relative; width: 600px; height: 100px; margin: 0 auto; background: #f8f8f8; border: 1px solid #ccc;">
+            <div class="dot" style="background-color: green;"></div>
+        </div>
+        <button onclick="endExperiment()">Завершить</button>
+    </div>
+
+    <!-- Задача 3: Плавное слежение -->
+    <div id="smoothPursuit" class="screen">
+        <h2>Плавное слежение</h2>
+        <p>Следите за движущимся синим шаром</p>
+        <div class="experiment-info">
+            <p><strong>Эталон:</strong> Непрерывное плавное слежение по круговой траектории</p>
+        </div>
+        <div id="pursuitArea" style="position: relative; width: 600px; height: 400px; margin: 0 auto; background: #f8f8f8; border: 1px solid #ccc;">
+            <div class="moving-target"></div>
+        </div>
+        <button onclick="endExperiment()">Завершить</button>
+    </div>
+
+    <!-- Задача 4: Поиск цели -->
+    <div id="visualSearch" class="screen">
+        <h2>Поиск цели</h2>
+        <p>Найдите красный квадрат с буквой T</p>
+        <div class="experiment-info">
+            <p><strong>Эталон:</strong> Сканирующие саккады → Фиксация на цели</p>
+        </div>
+        <div id="searchGrid"></div>
+        <button onclick="endExperiment()">Завершить</button>
+    </div>
+
+    <!-- Задача 5: Просмотр изображения -->
+    <div id="imageViewing" class="screen">
+        <h2>Свободный просмотр изображения</h2>
+        <p>Рассматривайте изображение естественным образом</p>
+        <div class="experiment-info">
+            <p><strong>Эталон:</strong> Естественные саккады и фиксации</p>
+        </div>
+        <div id="imageContainer">
+            <img src="https://picsum.photos/600/400?random=1" alt="Демонстрационное изображение" style="width: 100%; border: 1px solid #ccc;">
+        </div>
+        <button onclick="endExperiment()">Завершить</button>
+    </div>
+
+    <!-- Задача 6: Чтение текста -->
+    <div id="reading" class="screen">
+        <h2>Чтение текста</h2>
+        <p>Читайте текст естественным образом</p>
+        <div class="experiment-info">
+            <p><strong>Эталон:</strong> Регулярные саккады вперед → Фиксации → Регрессии</p>
+        </div>
+        <div id="readingText">
+            <p>Научные исследования показывают, что движения глаз человека тесно связаны с когнитивными процессами.
+            При чтении глаза совершают быстрые скачки - саккады, перемежающиеся короткими остановками - фиксациями.</p>
+        </div>
+        <button onclick="endExperiment()">Завершить</button>
+    </div>
+
+    <script>
+        // Глобальные переменные эксперимента
+        let experiment = {
+            currentTask: null,
+            log: [],
+            intervals: []
+        };
+        // Система нормализации координат
+        const coordinateSystem = {
+            screenInfo: null,
+
+            init() {
+                this.screenInfo = {
+                    screenWidth: window.screen.width,
+                    screenHeight: window.screen.height,
+                    innerWidth: window.innerWidth,
+                    innerHeight: window.innerHeight,
+                    devicePixelRatio: window.devicePixelRatio,
+                    timestamp: Date.now()
+                };
+                addLog('SYSTEM', 'Информация об экране', this.screenInfo);
+            },
+
+            // Нормализация абсолютных координат в относительные [0-1]
+            normalize(x, y) {
+                return {
+                    x: x / this.screenInfo.innerWidth,
+                    y: y / this.screenInfo.innerHeight,
+                    absoluteX: x,
+                    absoluteY: y
+                };
+            },
+
+            // Создание стимула в относительных координатах
+            createStimulus(xPercent, yPercent) {
+                return {
+                    x: xPercent * this.screenInfo.innerWidth,
+                    y: yPercent * this.screenInfo.innerHeight,
+                    normalizedX: xPercent,
+                    normalizedY: yPercent
+                };
+            }
+        };
+
+        // Инициализация лога
+        function initializeLog() {
+            experiment.log = [];
+            addLog('SYSTEM', 'Система инициализирована');
+            updateLogDisplay();
+        }
+
+        // Добавление записи в лог с реальным временем
+        function addLog(type, message, data = null) {
+            const timestamp = Date.now();
+            const logEntry = {
+                timestamp: timestamp,
+                isoTime: new Date(timestamp).toISOString(),
+                type: type,
+                message: message,
+                data: data
+            };
+            experiment.log.push(logEntry);
+            updateLogDisplay();
+            console.log(logEntry);
+        }
+
+        // Обновление отображения лога
+        function updateLogDisplay() {
+            const logOutput = document.getElementById('logOutput');
+            if (!logOutput) return;
+
+            let html = '';
+            const recentLogs = experiment.log.slice(-20).reverse(); // Последние 20 записей
+
+            recentLogs.forEach(entry => {
+                const time = new Date(entry.timestamp).toLocaleTimeString('ru-RU', {
+                    hour12: false,
+                    fractionalSecondDigits: 3
+                });
+                html += `<div class="timestamp">${new Date(entry.timestamp).toISOString()}</div>`;
+                html += `<div>${entry.type}: ${entry.message}`;
+                if (entry.data) {
+                    html += ` | ${JSON.stringify(entry.data)}`;
+                }
+                html += `</div>`;
+            });
+
+            logOutput.innerHTML = html;
+        }
+
+        // Очистка лога
+        function clearLog() {
+            experiment.log = [];
+            addLog('SYSTEM', 'Лог очищен');
+        }
+
+        // Загрузка лога
+        function downloadLog() {
+            if (experiment.log.length === 0) {
+                alert('Лог пуст!');
+                return;
+            }
+
+            const dataStr = JSON.stringify(experiment.log, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `eye_tracking_log_${Date.now()}.json`;
+            link.click();
+        }
+
+        // Начало эксперимента
+        function startExperiment(taskName) {
+
+            // Инициализация системы координат
+            if (!coordinateSystem.screenInfo) {
+                coordinateSystem.init();
+            }
+            experiment.currentTask = taskName;
+
+            // Остановить все предыдущие интервалы
+            experiment.intervals.forEach(interval => clearInterval(interval));
+            experiment.intervals = [];
+
+            // Показать экран задачи
+            showScreen(taskName);
+
+            // Начать задачу
+            switch(taskName) {
+                case 'saccades':
+                    startSaccadesTask();
+                    break;
+                case 'predictableSaccades':
+                    startPredictableSaccadesTask();
+                    break;
+                case 'smoothPursuit':
+                    startSmoothPursuitTask();
+                    break;
+                case 'visualSearch':
+                    startVisualSearchTask();
+                    break;
+                case 'imageViewing':
+                    startImageViewingTask();
+                    break;
+                case 'reading':
+                    startReadingTask();
+                    break;
+            }
+
+            addLog('EXPERIMENT_START', `Задача "${getTaskName(taskName)}" начата`);
+        }
+
+        // Завершение эксперимента
+        function endExperiment() {
+            addLog('EXPERIMENT_END', `Задача "${getTaskName(experiment.currentTask)}" завершена`);
+
+            // Остановить все интервалы
+            experiment.intervals.forEach(interval => clearInterval(interval));
+            experiment.intervals = [];
+
+            // Вернуться на главный экран
+            showScreen('mainScreen');
+        }
+
+        // Получение читаемого имени задачи
+        function getTaskName(taskId) {
+            const names = {
+                'saccades': 'Детерминированные саккады',
+                'predictableSaccades': 'Предсказуемые саккады',
+                'smoothPursuit': 'Плавное слежение',
+                'visualSearch': 'Поиск цели',
+                'imageViewing': 'Свободный просмотр',
+                'reading': 'Чтение текста'
+            };
+            return names[taskId] || taskId;
+        }
+
+        // Задача 1: Детерминированные саккады
+        function startSaccadesTask() {
+            const area = document.getElementById('saccadesArea');
+            area.innerHTML = '';
+
+            const positions = [
+                {x: 100, y: 100}, {x: 500, y: 100},
+                {x: 100, y: 300}, {x: 500, y: 300},
+                {x: 300, y: 200}
+            ];
+
+            let currentPos = 0;
+
+            addLog('STIMULUS', 'Начало детерминированной последовательности', {
+                positions: positions,
+                dotDuration: 2000,
+                interDotInterval: 500
+            });
+
+            function showNextDot() {
+                if (currentPos >= positions.length) {
+                    endExperiment();
+                    return;
+                }
+
+                const pos = positions[currentPos];
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                dot.style.left = pos.x + 'px';
+                dot.style.top = pos.y + 'px';
+                dot.id = `dot_${currentPos}`;
+
+                area.innerHTML = '';
+                area.appendChild(dot);
+
+                addLog('FIXATION_START', `Фиксация на точке ${currentPos + 1}`, {
+                    dotId: currentPos,
+                    position: pos,
+                    expectedEndTime: Date.now() + 2000
+                });
+
+                currentPos++;
+            }
+
+            // Показать первую точку сразу
+            showNextDot();
+
+            // Интервал для последующих точек
+            const interval = setInterval(showNextDot, 2500);
+            experiment.intervals.push(interval);
+        }
+
+        // Задача 2: Предсказуемые саккады (горизонтальные)
+        function startPredictableSaccadesTask() {
+            const area = document.getElementById('predictableArea');
+            const dot = area.querySelector('.dot');
+            let position = 'left';
+
+            addLog('STIMULUS', 'Начало предсказуемых горизонтальных саккад', {
+                pattern: 'left → right → left',
+                interval: 2000
+            });
+
+            function moveDot() {
+                if (position === 'left') {
+                    dot.style.left = '50px';
+                    dot.style.top = '40px';
+                    position = 'right';
+                    addLog('SACCADE_START', 'Саккада вправо', { from: 'left', to: 'right' });
+                } else {
+                    dot.style.left = '550px';
+                    dot.style.top = '40px';
+                    position = 'left';
+                    addLog('SACCADE_START', 'Саккада влево', { from: 'right', to: 'left' });
+                }
+
+                addLog('FIXATION_START', 'Фиксация в ' + position, {
+                    position: position,
+                    expectedEndTime: Date.now() + 2000
+                });
+            }
+
+            // Начальная позиция
+            dot.style.left = '50px';
+            dot.style.top = '40px';
+            addLog('FIXATION_START', 'Начальная фиксация слева');
+
+            // Интервал для движения
+            const interval = setInterval(moveDot, 2000);
+            experiment.intervals.push(interval);
+        }
+
+        // Задача 3: Плавное слежение
+        function startSmoothPursuitTask() {
+            const target = document.querySelector('.moving-target');
+            let angle = 0;
+
+            addLog('STIMULUS', 'Начало плавного движения по кругу');
+
+            const interval = setInterval(() => {
+                angle += 0.02;
+                const radius = 150;
+                const x = 300 + radius * Math.cos(angle);
+                const y = 200 + radius * Math.sin(angle);
+
+                target.style.left = x + 'px';
+                target.style.top = y + 'px';
+
+                // Логируем позицию каждые 100 мс для траектории
+                if (Date.now() % 100 < 16) { // ~6 Hz
+                    addLog('SMOOTH_PURSUIT', 'Позиция цели', {
+                        x: Math.round(x),
+                        y: Math.round(y),
+                        angle: Math.round(angle * 180/Math.PI)
+                    });
+                }
+            }, 16);
+
+            experiment.intervals.push(interval);
+        }
+
+        // Задача 4: Поиск цели
+        function startVisualSearchTask() {
+            generateSearchGrid();
+            addLog('STIMULUS', 'Сетка поиска сгенерирована');
+        }
+
+        function generateSearchGrid() {
+            const grid = document.getElementById('searchGrid');
+            grid.innerHTML = '';
+
+            const items = [];
+            const targetPosition = Math.floor(Math.random() * 100);
+
+            for (let i = 0; i < 100; i++) {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = 'L';
+                item.dataset.index = i;
+
+                if (i === targetPosition) {
+                    item.textContent = 'T';
+                    item.classList.add('target');
+                    item.onclick = function() {
+                        addLog('RESPONSE', 'Цель найдена', {
+                            targetPosition: targetPosition,
+                            searchTime: Date.now() - experiment.log.find(e => e.type === 'EXPERIMENT_START').timestamp
+                        });
+                        setTimeout(endExperiment, 500);
+                    };
+                }
+
+                items.push(item);
+            }
+
+            // Перемешиваем массив
+            for (let i = items.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [items[i], items[j]] = [items[j], items[i]];
+            }
+
+            items.forEach(item => grid.appendChild(item));
+
+            addLog('STIMULUS', 'Цель размещена в сетке', {
+                targetPosition: targetPosition,
+                gridSize: '10x10'
+            });
+        }
+
+        // Задача 5: Просмотр изображения
+        function startImageViewingTask() {
+            addLog('STIMULUS', 'Изображение показано', {
+                imageUrl: 'https://picsum.photos/600/400?random=1'
+            });
+        }
+
+        // Задача 6: Чтение текста
+        function startReadingTask() {
+            addLog('STIMULUS', 'Текст для чтения показан', {
+                textLength: document.getElementById('readingText').textContent.length,
+                lines: 2
+            });
+        }
+
+        // Функция переключения между экранами
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.style.display = 'none';
+            });
+            document.getElementById(screenId).style.display = 'block';
+        }
+
+        // Инициализация при загрузке
+        initializeLog();
+    </script>
+</body>
+</html>

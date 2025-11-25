@@ -69,6 +69,6 @@ def video_to_frames(video_path, output_folder, fps=None, time_format="%H_%M_%S_%
 
 if __name__ == "__main__":
 	# Пример 1: Сохранить все кадры с оригинальной частотой
-	video_to_frames("test_data/video_7.MOV", "test_data/video7_frames")
+	video_to_frames("../test_data/video_8.MOV", "../test_data/video8_frames")
 	# Пример 2: Сохранять 1 кадр в секунду
 	#video_to_frames("input.mp4", "output_frames_1fps", fps=1)
