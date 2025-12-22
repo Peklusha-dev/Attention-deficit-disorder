@@ -63,3 +63,8 @@ plots/
 # OS
 Thumbs.db
 desktop.ini
+
+#something
+/experiments_docs/Протокол_оценка_точности_сегментации.docx
+/test_data/*
+/dataset/eyes_movies/*

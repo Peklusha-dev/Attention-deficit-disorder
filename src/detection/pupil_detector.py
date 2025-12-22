@@ -208,6 +208,313 @@ class PupilDetector:
         df = pd.DataFrame(self.pupil_data)
         df.to_csv(output_file, index=False)
         print(f"Pupil data saved to {output_file} ({len(df)} frames)")
+    
+    def compute_error(self, pred_coords: Dict[str, Optional[Tuple[int, int]]], 
+                     true_coords: Dict[str, Tuple[int, int]]) -> Optional[float]:
+        """
+        Вычисление средней ошибки между предсказанными и истинными координатами в пикселях.
+        
+        Вычисляет евклидово расстояние между предсказанными и истинными координатами
+        для левого и правого зрачков, затем возвращает среднее значение.
+        
+        Args:
+            pred_coords: Словарь с предсказанными координатами зрачков в пикселях
+                        {'left': (x, y) или None, 'right': (x, y) или None}
+            true_coords: Словарь с истинными координатами зрачков в пикселях
+                        {'left': (x, y), 'right': (x, y)}
+        
+        Returns:
+            Средняя ошибка в пикселях или None, если зрачки не были обнаружены
+        """
+        left_pred = pred_coords.get('left')
+        right_pred = pred_coords.get('right')
+        left_true = true_coords.get('left')
+        right_true = true_coords.get('right')
+        
+        # Проверка наличия всех необходимых координат
+        if left_pred is None or right_pred is None or left_true is None or right_true is None:
+            return None
+        
+        # Вычисление ошибки по каждому зрачку (евклидово расстояние)
+        left_error = np.sqrt((left_pred[0] - left_true[0]) ** 2 + (left_pred[1] - left_true[1]) ** 2)
+        right_error = np.sqrt((right_pred[0] - right_true[0]) ** 2 + (right_pred[1] - right_true[1]) ** 2)
+        
+        # Возврат средней ошибки
+        return (left_error + right_error) / 2.0
+    
+    def detect_pupils_with_ground_truth(self, frame_filename: str, csv_file: str, 
+                                       image_folder: str, verbose: bool = True) -> Tuple[Optional[np.ndarray], 
+                                                                                          Optional[Dict[str, Optional[Tuple[int, int]]]], 
+                                                                                          Optional[float]]:
+        """
+        Детектирование зрачков в кадре с сопоставлением с разметкой из CSV файла и вычислением ошибки.
+        
+        Этот метод загружает изображение, выполняет детектирование зрачков и сравнивает
+        результаты с истинными координатами из CSV файла разметки, вычисляя ошибку в пикселях.
+        
+        Args:
+            frame_filename: Имя файла кадра (например, 'frame_0_00_00.jpg')
+            csv_file: Путь к CSV файлу с разметкой (должен содержать колонки: 
+                     filename, left_x, left_y, right_x, right_y)
+            image_folder: Путь к папке с изображениями
+            verbose: Выводить ли подробную информацию о результатах
+        
+        Returns:
+            Кортеж (frame, pupil_coords, error):
+            - frame: Кадр с отмеченными зрачками (или None, если ошибка)
+            - pupil_coords: Словарь с координатами зрачков в пикселях
+            - error: Ошибка в пикселях (или None, если не удалось вычислить)
+        """
+        import os
+        
+        # Чтение данных из CSV
+        csv_path = Path(csv_file)
+        if not csv_path.exists():
+            if verbose:
+                print(f"Error: CSV file not found: {csv_file}")
+                print(f"  Absolute path: {csv_path.absolute()}")
+            return None, None, None
+        
+        image_folder_path = Path(image_folder)
+        if not image_folder_path.exists():
+            if verbose:
+                print(f"Error: Image folder not found: {image_folder}")
+                print(f"  Absolute path: {image_folder_path.absolute()}")
+            return None, None, None
+        
+        df = pd.read_csv(csv_file)
+        
+        # Поиск строки с соответствующим кадром
+        row = df[df['filename'] == frame_filename]
+        if row.empty:
+            if verbose:
+                print(f"Warning: Frame {frame_filename} not found in annotations")
+            return None, None, None
+        
+        # Извлечение истинных координат
+        true_left_x = int(row['left_x'].values[0])
+        true_left_y = int(row['left_y'].values[0])
+        true_right_x = int(row['right_x'].values[0])
+        true_right_y = int(row['right_y'].values[0])
+        
+        true_coords = {
+            'left': (true_left_x, true_left_y),
+            'right': (true_right_x, true_right_y)
+        }
+        
+        # Формирование полного пути к изображению
+        image_path = image_folder_path / frame_filename
+        
+        # Загрузка изображения
+        frame = cv2.imread(str(image_path))
+        if frame is None:
+            if verbose:
+                print(f"Error: Could not read image {image_path}")
+                print(f"  Absolute path: {image_path.absolute()}")
+            return None, None, None
+        
+        # Детектирование зрачков
+        pupil_coords_norm = self.detect_pupils_in_frame(frame, frame_filename)
+        
+        # Преобразование нормализованных координат в пиксели
+        h, w = frame.shape[:2]
+        pupil_coords = {'left': None, 'right': None}
+        
+        if pupil_coords_norm['left'] is not None:
+            pupil_coords['left'] = (int(pupil_coords_norm['left'][0] * w), 
+                                   int(pupil_coords_norm['left'][1] * h))
+        if pupil_coords_norm['right'] is not None:
+            pupil_coords['right'] = (int(pupil_coords_norm['right'][0] * w), 
+                                    int(pupil_coords_norm['right'][1] * h))
+        
+        # Вычисление ошибки
+        error = self.compute_error(pupil_coords, true_coords)
+        
+        # Создание визуализации (кадр с отмеченными зрачками)
+        frame_vis = frame.copy()
+        if pupil_coords['left'] is not None:
+            cv2.circle(frame_vis, pupil_coords['left'], 5, (0, 255, 0), -1)  # Зеленый - предсказанные
+        if pupil_coords['right'] is not None:
+            cv2.circle(frame_vis, pupil_coords['right'], 5, (0, 255, 0), -1)
+        
+        # Истинные координаты (красный)
+        cv2.circle(frame_vis, true_coords['left'], 5, (0, 0, 255), -1)
+        cv2.circle(frame_vis, true_coords['right'], 5, (0, 0, 255), -1)
+        
+        # Вывод информации
+        if verbose:
+            print(f"Frame: {frame_filename}")
+            print(f"  Predicted: Left {pupil_coords['left']}, Right {pupil_coords['right']}")
+            print(f"  Ground truth: Left {true_coords['left']}, Right {true_coords['right']}")
+            if error is not None:
+                print(f"  Error: {error:.2f} pixels")
+            else:
+                print(f"  Error: Could not compute (pupils not detected)")
+        
+        return frame_vis, pupil_coords, error
+    
+    def calculate_total_error(self, csv_file: str, image_folder: str, 
+                             verbose: bool = False) -> Optional[float]:
+        """
+        Вычисление общей средней ошибки для всех изображений из CSV файла разметки.
+        
+        Обрабатывает все изображения, указанные в CSV файле, и вычисляет среднюю
+        ошибку детектирования зрачков в пикселях.
+        
+        Args:
+            csv_file: Путь к CSV файлу с разметкой
+            image_folder: Путь к папке с изображениями
+            verbose: Выводить ли информацию о каждом кадре
+        
+        Returns:
+            Средняя ошибка в пикселях для всех обработанных изображений или None
+        """
+        csv_path = Path(csv_file)
+        if not csv_path.exists():
+            abs_path = csv_path.absolute()
+            print(f"Error: CSV file not found: {csv_file}")
+            print(f"  Absolute path: {abs_path}")
+            return None
+        
+        if not Path(image_folder).exists():
+            print(f"Error: Image folder not found: {image_folder}")
+            return None
+        
+        df = pd.read_csv(csv_file)
+        total_error = 0.0
+        total_images = 0
+        failed_images = 0
+        
+        print(f"Найдено {len(df)} записей в файле разметки: {Path(csv_file).name}")
+        print(f"Обработка изображений для валидации...")
+        
+        for idx, row in df.iterrows():
+            frame_filename = row['filename']
+            _, _, error = self.detect_pupils_with_ground_truth(
+                frame_filename, csv_file, image_folder, verbose=verbose
+            )
+            
+            if error is not None:
+                total_error += error
+                total_images += 1
+            else:
+                failed_images += 1
+                if verbose:
+                    print(f"  Failed to process {frame_filename}")
+        
+        if total_images > 0:
+            average_error = total_error / total_images
+            print(f"\n{'='*50}")
+            print(f"РЕЗУЛЬТАТЫ ВАЛИДАЦИИ:")
+            print(f"{'='*50}")
+            print(f"  Обработано успешно: {total_images} изображений")
+            print(f"  Не удалось обработать: {failed_images} изображений")
+            print(f"  Средняя ошибка: {average_error:.2f} пикселей")
+            print(f"{'='*50}")
+            return average_error
+        else:
+            print("Ошибка: Не удалось обработать ни одного изображения")
+            return None
+    
+    def process_image_folder_with_validation(self, input_folder: str, 
+                                            annotations_csv: str,
+                                            output_csv: str = "pupil_data.csv",
+                                            output_errors_csv: str = "validation_errors.csv") -> Optional[float]:
+        """
+        Обработка изображений с валидацией против разметки и сохранением ошибок.
+        
+        Обрабатывает все изображения в папке, детектирует зрачки, сравнивает
+        с разметкой и сохраняет результаты вместе с ошибками в CSV файлы.
+        
+        Args:
+            input_folder: Путь к папке с изображениями
+            annotations_csv: Путь к CSV файлу с разметкой (ground truth)
+            output_csv: Путь к CSV файлу для сохранения результатов детектирования
+            output_errors_csv: Путь к CSV файлу для сохранения ошибок валидации
+        
+        Returns:
+            Средняя ошибка в пикселях или None
+        """
+        input_path = Path(input_folder)
+        if not input_path.exists():
+            raise ValueError(f"Folder not found: {input_folder}")
+        
+        annotations_path = Path(annotations_csv)
+        if not annotations_path.exists():
+            raise ValueError(f"Annotations file not found: {annotations_csv}\n  Absolute path: {annotations_path.absolute()}")
+        
+        annotations_df = pd.read_csv(annotations_csv)
+        self.pupil_data = []
+        errors_data = []
+        
+        # Поиск всех изображений
+        image_files = sorted(input_path.glob('*.jpg')) + sorted(input_path.glob('*.png'))
+        total = len(image_files)
+        
+        print(f"Processing {total} images with validation from {input_folder}")
+        
+        total_error = 0.0
+        total_valid = 0
+        
+        # Обработка каждого изображения
+        for i, img_file in enumerate(image_files):
+            try:
+                frame = cv2.imread(str(img_file))
+                if frame is None:
+                    print(f"Error: Could not read image {img_file.name}")
+                    continue
+                
+                # Поиск в разметке
+                row = annotations_df[annotations_df['filename'] == img_file.name]
+                if row.empty:
+                    # Если нет в разметке, просто детектируем
+                    self.detect_pupils_in_frame(frame, img_file.name)
+                    continue
+                
+                # Детектирование с валидацией
+                _, pupil_coords, error = self.detect_pupils_with_ground_truth(
+                    img_file.name, annotations_csv, str(input_folder), verbose=False
+                )
+                
+                # Сохранение ошибки
+                if error is not None:
+                    errors_data.append({
+                        'filename': img_file.name,
+                        'error_pixels': error,
+                        'left_pred_x': pupil_coords['left'][0] if pupil_coords['left'] else None,
+                        'left_pred_y': pupil_coords['left'][1] if pupil_coords['left'] else None,
+                        'right_pred_x': pupil_coords['right'][0] if pupil_coords['right'] else None,
+                        'right_pred_y': pupil_coords['right'][1] if pupil_coords['right'] else None,
+                        'left_true_x': int(row['left_x'].values[0]),
+                        'left_true_y': int(row['left_y'].values[0]),
+                        'right_true_x': int(row['right_x'].values[0]),
+                        'right_true_y': int(row['right_y'].values[0])
+                    })
+                    total_error += error
+                    total_valid += 1
+                
+                # Периодический вывод прогресса
+                if (i + 1) % 10 == 0:
+                    print(f"Processed {i + 1}/{total} images")
+                    
+            except Exception as e:
+                print(f"Error processing {img_file.name}: {str(e)}")
+        
+        # Сохранение результатов
+        self.save_pupil_data(output_csv)
+        
+        # Сохранение ошибок
+        if errors_data:
+            errors_df = pd.DataFrame(errors_data)
+            errors_df.to_csv(output_errors_csv, index=False)
+            print(f"Validation errors saved to {output_errors_csv}")
+            
+            average_error = total_error / total_valid
+            print(f"Average validation error: {average_error:.2f} pixels ({total_valid} images)")
+            return average_error
+        
+        print("No validation data to save")
+        return None
 
 
 class PupilHeadDetector(PupilDetector):
@@ -388,3 +695,102 @@ class PupilHeadDetector(PupilDetector):
                 })
         
         return pupil_coords, relative_pupil_coords
+    
+    def detect_pupils_with_ground_truth(self, frame_filename: str, csv_file: str, 
+                                       image_folder: str, verbose: bool = True) -> Tuple[Optional[np.ndarray], 
+                                                                                          Optional[Dict[str, Optional[Tuple[int, int]]]], 
+                                                                                          Optional[float]]:
+        """
+        Детектирование зрачков с компенсацией движения головы и сопоставлением с разметкой.
+        
+        Этот метод загружает изображение, выполняет детектирование зрачков с компенсацией
+        движения головы и сравнивает абсолютные координаты с истинными координатами из CSV файла.
+        
+        Args:
+            frame_filename: Имя файла кадра
+            csv_file: Путь к CSV файлу с разметкой
+            image_folder: Путь к папке с изображениями
+            verbose: Выводить ли подробную информацию
+        
+        Returns:
+            Кортеж (frame, pupil_coords, error):
+            - frame: Кадр с отмеченными зрачками
+            - pupil_coords: Абсолютные координаты зрачков в пикселях
+            - error: Ошибка в пикселях
+        """
+        import os
+        
+        # Чтение данных из CSV
+        csv_path = Path(csv_file)
+        if not csv_path.exists():
+            if verbose:
+                print(f"Error: CSV file not found: {csv_file}")
+                print(f"  Absolute path: {csv_path.absolute()}")
+            return None, None, None
+        
+        image_folder_path = Path(image_folder)
+        if not image_folder_path.exists():
+            if verbose:
+                print(f"Error: Image folder not found: {image_folder}")
+                print(f"  Absolute path: {image_folder_path.absolute()}")
+            return None, None, None
+        
+        df = pd.read_csv(csv_file)
+        
+        # Поиск строки с соответствующим кадром
+        row = df[df['filename'] == frame_filename]
+        if row.empty:
+            if verbose:
+                print(f"Warning: Frame {frame_filename} not found in annotations")
+            return None, None, None
+        
+        # Извлечение истинных координат
+        true_left_x = int(row['left_x'].values[0])
+        true_left_y = int(row['left_y'].values[0])
+        true_right_x = int(row['right_x'].values[0])
+        true_right_y = int(row['right_y'].values[0])
+        
+        true_coords = {
+            'left': (true_left_x, true_left_y),
+            'right': (true_right_x, true_right_y)
+        }
+        
+        # Формирование полного пути к изображению
+        image_path = image_folder_path / frame_filename
+        
+        # Загрузка изображения
+        frame = cv2.imread(str(image_path))
+        if frame is None:
+            if verbose:
+                print(f"Error: Could not read image {image_path}")
+                print(f"  Absolute path: {image_path.absolute()}")
+            return None, None, None
+        
+        # Детектирование зрачков (возвращает абсолютные и относительные координаты)
+        pupil_coords, relative_pupil_coords = self.detect_pupils_in_frame(frame, frame_filename)
+        
+        # Вычисление ошибки (используем абсолютные координаты для сравнения)
+        error = self.compute_error(pupil_coords, true_coords)
+        
+        # Создание визуализации
+        frame_vis = frame.copy()
+        if pupil_coords['left'] is not None:
+            cv2.circle(frame_vis, pupil_coords['left'], 5, (0, 255, 0), -1)  # Зеленый - предсказанные
+        if pupil_coords['right'] is not None:
+            cv2.circle(frame_vis, pupil_coords['right'], 5, (0, 255, 0), -1)
+        
+        # Истинные координаты (красный)
+        cv2.circle(frame_vis, true_coords['left'], 5, (0, 0, 255), -1)
+        cv2.circle(frame_vis, true_coords['right'], 5, (0, 0, 255), -1)
+        
+        # Вывод информации
+        if verbose:
+            print(f"Frame: {frame_filename}")
+            print(f"  Predicted (absolute): Left {pupil_coords['left']}, Right {pupil_coords['right']}")
+            print(f"  Ground truth: Left {true_coords['left']}, Right {true_coords['right']}")
+            if error is not None:
+                print(f"  Error: {error:.2f} pixels")
+            else:
+                print(f"  Error: Could not compute (pupils not detected)")
+        
+        return frame_vis, pupil_coords, error
